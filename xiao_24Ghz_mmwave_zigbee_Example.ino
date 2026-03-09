@@ -33,6 +33,7 @@
 #define RADAR_OUT_PIN                   D10    // mmWave shield OUT -> D10
 #define LOOP_DELAY_MS                   10
 #define HYSTERESIS_SAMPLES              3      // debounce for GPIO occupancy truth
+#define PRESENCE_ASSERT_DELAY_MS        3000UL // valid presence requires sustained HIGH for this long; set 0 for immediate
 
 // UART radar configuration/readback (LD24xx-compatible command protocol).
 #define RADAR_UART_READBACK_ENABLE      1
@@ -153,8 +154,11 @@ static RadarParams radarParamsCache = {};
 
 ZigbeeOccupancySensor zbPresence(PRESENCE_ENDPOINT);
 
+static bool presenceDebounced = false;
 static bool presenceStable = false;
-static uint8_t disagree = 0;
+static uint8_t debounceDisagree = 0;
+static bool presenceAssertDelayArmed = false;
+static unsigned long presenceAssertDelayStartedAt = 0;
 static unsigned long nextHeartbeat = 0;
 
 static inline uint16_t readLE16(const uint8_t* p) {
@@ -745,19 +749,45 @@ void setup() {
   DBGLN("\n[ZB] Connected");
   zbPresence.requestOTAUpdate();
 
-  presenceStable = (digitalRead(RADAR_OUT_PIN) == HIGH);
+  presenceDebounced = (digitalRead(RADAR_OUT_PIN) == HIGH);
+  presenceStable = presenceDebounced && (PRESENCE_ASSERT_DELAY_MS == 0);
+  if (presenceDebounced && PRESENCE_ASSERT_DELAY_MS > 0) {
+    presenceAssertDelayArmed = true;
+    presenceAssertDelayStartedAt = millis();
+  }
   reportPresence(presenceStable);
 }
 
 void loop() {
   bool pinPresence = (digitalRead(RADAR_OUT_PIN) == HIGH);
 
-  if (pinPresence == presenceStable) {
-    disagree = 0;
-  } else if (++disagree >= HYSTERESIS_SAMPLES) {
-    presenceStable = pinPresence;
-    disagree = 0;
-    reportPresence(presenceStable);
+  if (pinPresence == presenceDebounced) {
+    debounceDisagree = 0;
+  } else if (++debounceDisagree >= HYSTERESIS_SAMPLES) {
+    presenceDebounced = pinPresence;
+    debounceDisagree = 0;
+  }
+
+  if (presenceStable) {
+    if (!presenceDebounced) {
+      presenceStable = false;
+      presenceAssertDelayArmed = false;
+      reportPresence(false);
+    }
+  } else {
+    if (!presenceDebounced) {
+      presenceAssertDelayArmed = false;
+    } else if (PRESENCE_ASSERT_DELAY_MS == 0) {
+      presenceStable = true;
+      reportPresence(true);
+    } else if (!presenceAssertDelayArmed) {
+      presenceAssertDelayArmed = true;
+      presenceAssertDelayStartedAt = millis();
+    } else if ((uint32_t)(millis() - presenceAssertDelayStartedAt) >= PRESENCE_ASSERT_DELAY_MS) {
+      presenceStable = true;
+      presenceAssertDelayArmed = false;
+      reportPresence(true);
+    }
   }
 
   if (millis() >= nextHeartbeat) {

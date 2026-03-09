@@ -6,7 +6,8 @@ Arduino firmware that publishes mmWave presence over Zigbee using a GPIO occupan
 
 - Exposes a Zigbee Occupancy Sensor endpoint (`endpoint 10`).
 - Reads radar presence from a digital output pin (`D10`).
-- Applies simple hysteresis/debounce (`3` consecutive samples) before state changes.
+- Applies hysteresis/debounce (`3` consecutive samples) on GPIO occupancy transitions.
+- Applies a configurable presence-assert delay (default `3000 ms`) before reporting occupancy as `true`.
 - Reports occupancy changes to Zigbee and sends serial heartbeat logs every 2 seconds.
 - Supports factory reset by holding the boot button for more than 3 seconds.
 - Optionally supports UART radar command/ack protocol for:
@@ -69,7 +70,8 @@ The sketch contains this build guard:
 
 - Main loop polls radar OUT every `10 ms`.
 - State change requires `HYSTERESIS_SAMPLES` consecutive disagreements.
-- Presence updates are reported immediately after debounce confirmation.
+- Presence assert (`false -> true`) additionally requires continuous HIGH for `PRESENCE_ASSERT_DELAY_MS`.
+- Presence clear (`true -> false`) is reported immediately after debounce confirmation.
 - Heartbeat log prints every 2 seconds:
   - `[HB] PRESENCE` or `[HB] NO PRESENCE`
 
@@ -122,6 +124,7 @@ If you set `RADAR_UART_WRITE_PROFILE_ENABLE` to `1`, the sketch attempts to writ
 - `RADAR_OUT_PIN`: `D10`
 - `LOOP_DELAY_MS`: `10`
 - `HYSTERESIS_SAMPLES`: `3`
+- `PRESENCE_ASSERT_DELAY_MS`: `3000` (`0` = report presence immediately after debounce)
 - `DEBUG_LOGS`: `1` (serial diagnostics enabled)
 
 ## Troubleshooting
