@@ -23,7 +23,7 @@ Arduino firmware that publishes mmWave presence over Zigbee using a GPIO occupan
 
 ## Pin Mapping
 
-From `xiao_24Ghz_mmwave_zigbee_Example.ino`:
+From `src/config/AppConfig.h`:
 
 - Radar digital OUT -> `D10`
 - UART RX -> `D2`
@@ -70,8 +70,7 @@ The sketch contains this build guard:
 
 - Main loop polls radar OUT every `10 ms`.
 - State change requires `HYSTERESIS_SAMPLES` consecutive disagreements.
-- Presence assert (`false -> true`) additionally requires continuous HIGH for `PRESENCE_ASSERT_DELAY_MS`.
-- Presence clear (`true -> false`) is reported immediately after debounce confirmation.
+- Presence changes are reported immediately after debounce confirmation.
 - Heartbeat log prints every 2 seconds:
   - `[HB] PRESENCE` or `[HB] NO PRESENCE`
 
@@ -124,7 +123,6 @@ If you set `RADAR_UART_WRITE_PROFILE_ENABLE` to `1`, the sketch attempts to writ
 - `RADAR_OUT_PIN`: `D10`
 - `LOOP_DELAY_MS`: `10`
 - `HYSTERESIS_SAMPLES`: `3`
-- `PRESENCE_ASSERT_DELAY_MS`: `3000` (`0` = report presence immediately after debounce)
 - `DEBUG_LOGS`: `1` (serial diagnostics enabled)
 
 ## Troubleshooting
@@ -143,9 +141,14 @@ If you set `RADAR_UART_WRITE_PROFILE_ENABLE` to `1`, the sketch attempts to writ
 
 ## File Layout
 
-- `xiao_24Ghz_mmwave_zigbee_Example.ino` - main firmware.
+- `xiao_24Ghz_mmwave_zigbee_Example.ino` - thin Arduino entrypoint (`setup`/`loop` bridge).
+- `src/app/AppController.*` - boot/runtime orchestration.
+- `src/config/AppConfig.h` - compile-time constants and feature flags.
+- `src/common/DebugLog.h` - debug logging helpers/macros.
+- `src/radar/RadarUart.*` - UART radar command protocol, probes, readback/write profile paths.
+- `src/zigbee/ZigbeePresence.*` - Zigbee endpoint setup, occupancy reporting, factory reset handling.
+- `src/presence/PresenceLogic.*` - debounce/hysteresis and heartbeat timing.
 
 ## Notes
 
-- This project currently has one source file and compile-time configuration.
-- For production use, consider moving constants into a dedicated config header and adding release/version notes tied to OTA metadata.
+- The firmware is now modularized in `src/` while keeping Arduino sketch compatibility.
